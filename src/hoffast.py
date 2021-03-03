@@ -1,11 +1,12 @@
 
 from adt import adt, Case
 
+Number = float
 
 @adt
 class Expr:
     Var: Case[str]
-    Num: Case[float]
+    Num: Case[Number]
     BinOp: Case['Expr', str, 'Expr']
     UnOp: Case[str, 'Expr']
     If: Case['Expr', 'Expr', 'Expr']
