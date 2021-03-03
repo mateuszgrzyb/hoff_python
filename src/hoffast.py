@@ -5,17 +5,16 @@ Number = float
 
 @adt
 class Expr:
-    Var: Case[str]
-    Num: Case[Number]
-    BinOp: Case['Expr', str, 'Expr']
-    UnOp: Case[str, 'Expr']
-    If: Case['Expr', 'Expr', 'Expr']
-    Let: Case[list[tuple[str, 'Expr']], 'Expr']
-    Call: Case[str, list['Expr']]
+    VAR:   Case[str]
+    NUM:   Case[Number]
+    BINOP: Case['Expr', str, 'Expr']
+    UNOP:  Case[str, 'Expr']
+    IF:    Case['Expr', 'Expr', 'Expr']
+    LET:   Case[list[tuple[str, 'Expr']], 'Expr']
+    CALL:  Case[str, list['Expr']]
 
 
 @adt
 class Stmt:
-    Eval: Case[Expr]
-    Bind: Case[str, Expr]
-    Fun: Case[str, list[str], Expr]
+    BIND: Case[str, Expr]
+    FUN:  Case[str, list[str], Expr]
