@@ -2,7 +2,7 @@
 from llvmlite import ir
 from llvmlite.ir import Value
 
-from .hoffast import Expr, Stmt, Number
+from .hoffast import Expr, Decl, Number, Module
 from .hofflexer import HoffLexer
 from .hoffparser import HoffParser
 
@@ -11,97 +11,115 @@ from .hoffparser import HoffParser
 class CompilationError(Exception):
     pass
 
-# globals used for codegen
+class CodeGen:
+    def __init__(self, module: Module) -> None:
+        self.builder = ir.IRBuilder()
+        self.module = ir.Module(module.name)
+        self.values = dict()
+        self.decls = module.decls
 
-builder = ir.IRBuilder()
-module = ir.Module('main')
-values = dict()
+    def generate(self) -> str:
+        for decl in self.decls:
+            self.__gen_decl(decl)
 
-# main codegen
+        return str(self.module)
 
-def codegen(stmt: Stmt):
-    stmt.match(
-        Bind  = lambda n, e: codegen_bind(n, e),
-        Fun   = lambda n, as_, e: codegen_fun(n, as_, e),
-    )
 
-# statement codegen
-
-def codegen_expr(expr: Expr):
-    return expr.match(
-        Var   = lambda n: codegen_var(n),
-        Num   = lambda i: codegen_num(i),
-        Binop = lambda e1, op, e2: codegen_binop(e1, op, e2),
-        Unop  = lambda op, e: codegen_unop(op, e),
-        If    = lambda b, e1, e2: codegen_if(be, e1, e2),
-        Let   = lambda bs, e: codegen_let(bs, e),
-        Call  = lambda n, as_: codegen_call(n, as_),
-    )
-
-def codegen_bind(name: str, expr: Expr):
-    if name in values:
-        raise CompilationError(f'Name {name} already exists')
-    else:
-        values[name] = codegen_expr(expr)
-
-def codegen_fun(name: str, args: list[str], body: Expr):
-    function_type = ir.FunctionType(
-        ir.DoubleType(), 
-        [ir.DoubleType() for _ in args]
-    )
-    function = ir.Function(module, function_type, name)
+    # main gen
+    def __gen_decl(self, decl: Decl):
+        decl.match(
+            Const = lambda n, e: self.__gen_bind(n, e),
+            Fun   = lambda n, as_, e: self.__gen_fun(n, as_, e),
+        )
     
-    block = function.append_basic_block(name='entry')
-    builder.position_at_start(block)
-    result = codegen_expr(body)
-    builder.ret(result)
+    # decl gen
+    def __gen_bind(self, name: str, expr: Expr):
+        if name in self.values:
+            raise CompilationError(f'Name {name} already exists')
+        else:
+           self.values[name] = self.__gen_expr(expr)
 
-# expression codegen
+    def __gen_fun(self, name: str, args: list[str], body: Expr):
 
-def codegen_var(name: str) -> Value:
-    if name in values:
-        return values[name]
-    else:
-        raise CompilationError(
-            f'No value with this name: {name}\nbound names: {values}'
+        function_type = ir.FunctionType(
+            ir.DoubleType(), 
+            [ir.DoubleType() for _ in args]
+        )
+        function = ir.Function(self.module, function_type, name)
+        for name, arg in zip(args, function.args):
+            arg.name = name
+        
+        block = function.append_basic_block(name='entry')
+        self.builder.position_at_start(block)
+       
+        self.values.clear()
+        for arg in function.args:
+            self.values[arg.name] = arg
+        
+        result = self.__gen_expr(body)
+       
+        self.builder.ret(result)
+
+    # expression gen
+    def __gen_expr(self, expr: Expr):
+        return expr.match(
+            Var   = lambda n:          self.__gen_var(n),
+            Num   = lambda i:          self.__gen_num(i),
+            Binop = lambda e1, op, e2: self.__gen_binop(e1, op, e2),
+            Unop  = lambda op, e:      self.__gen_unop(op, e),
+            If    = lambda b, e1, e2:  self.__gen_if(be, e1, e2),
+            Let   = lambda bs, e:      self.__gen_let(bs, e),
+            Call  = lambda n, as_:     self.__gen_call(n, as_),
         )
 
-def codegen_num(num: Number) -> Value:
-    return ir.DoubleType()(num)
+    def __gen_var(self, name: str) -> Value:
+        if name in self.values:
+            return self.values[name]
+        else:
+            raise CompilationError(
+                f'No value with this name: {name}\n' +
+                f'bound names: {self.values}'
+            )
 
-def codegen_binop(expr1: Expr, op: str, expr2: Expr):
-    l = codegen_expr(expr1)
-    r = codegen_expr(expr2)
-    return {
-        '+': lambda l, r: builder.fadd(l, r, 'addexpr'),
-        '-': lambda l, r: builder.fsub(l, r, 'addexpr'),
-        '*': lambda l, r: builder.fmul(l, r, 'addexpr'),
-        '/': lambda l, r: builder.fdiv(l, r, 'addexpr'),
-    }[op](expr1, expr2)
+    def __gen_num(self, num: Number) -> Value:
+        return ir.DoubleType()(num)
 
-def codegen_unop(op: str, expr: Expr):
-    v = codegen_expr(expr)
-    return builder.fneg(v, 'negexpr')
+    def __gen_binop(self, expr1: Expr, op: str, expr2: Expr):
+        l = self.__gen_expr(expr1)
+        r = self.__gen_expr(expr2)
+        return {
+            '+': lambda l, r: self.builder.fadd(l, r, 'addexpr'),
+            '-': lambda l, r: self.builder.fsub(l, r, 'subexpr'),
+            '*': lambda l, r: self.builder.fmul(l, r, 'mulexpr'),
+            '/': lambda l, r: self.builder.fdiv(l, r, 'divexpr'),
+        }[op](l, r)
 
-def codegen_if(expr1: Expr, expr2: Expr, expr3: Expr):
-    pass
+    def __gen_unop(self, op: str, expr: Expr):
+        v = self.__gen_expr(expr)
+        return self.builder.fneg(v, 'negexpr')
 
-def codegen_let(binds: list[tuple[str, Expr]], expr: Expr):
-    pass
+    def __gen_if(self, xpr1: Expr, expr2: Expr, expr3: Expr):
+        pass
 
-def codegen_call(name: str, args: list[Expr]):
-    try:
-        function = module.get_global(name)
-    except KeyError:
-        raise CompilationError(
-            'No function with this name: {name}\ndeclared functions: {module.functions}'
-        )
-    if len(function.args) != len(args):
-        raise CompilationError(
-            f'Wrong number of arguments\nArgs from caller: {args}\nArgs from function: {function.args}'
-        )
-    eval_args = [codegen_expr(arg) for arg in args]
-    builder.call(name, eval_args, 'callexpr')
+    def __gen_let(self, binds: list[tuple[str, Expr]], expr: Expr):
+        pass
+
+    def __gen_call(self, name: str, args: list[Expr]):
+        try:
+            function = self.module.get_global(name)
+        except KeyError:
+            raise CompilationError(
+                f'No function with this name: {name}\n'
+                f'declared functions: {self.module.functions}'
+            )
+        if len(function.args) != len(args):
+            raise CompilationError(
+                f'Wrong number of arguments\n' + 
+                f'Args from caller: {args}\n' + 
+                f'Args from function: {function.args}'
+            )
+        eval_args = [self.__gen_expr(arg) for arg in args]
+        self.builder.call(name, eval_args, 'callexpr')
 
 # test
 
@@ -114,7 +132,7 @@ def test():
             text = input('hoff> ')
             tokens = lexer.tokenize(text)
             tree = parser.parse(tokens)
-            codegen(tree)
+            self.__gen(tree)
             print(module)
         except EOFError:
             print()

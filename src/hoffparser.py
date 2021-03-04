@@ -1,6 +1,6 @@
 from sly import Parser
 from .hofflexer import HoffLexer
-from .hoffast import Expr, Stmt
+from .hoffast import Expr, Decl, Module
 from math import nan
 
 class HoffParser(Parser):
@@ -8,7 +8,7 @@ class HoffParser(Parser):
         self.variables = dict()
 
     tokens = HoffLexer.tokens
-    start = 'stmt'
+    start = 'module'
 
     precedence = [
         ('left', ADD, SUB),
@@ -16,18 +16,19 @@ class HoffParser(Parser):
         ('right', NEG),
     ]
 
-    @_('expr')
-    def stmt(self, p):
-        return Stmt.EVAL(p.expr)
+    @_('MODULE ID PUBLIC decl { decl }')
+    def module(self, p):
+        decls = [p.decl0] + [d[0] for d in p[4]]
+        return Module(p.ID, decls)
 
-    @_('ID BIND expr')
-    def stmt(self, p):
-        return Stmt.BIND(p.ID, p.expr)
+    @_('CONST ID BIND expr')
+    def decl(self, p):
+        return Decl.CONST(p.ID, p.expr)
 
-    @_('FUN ID LP ID { COMMA ID } RP BODY expr')
-    def stmt(self, p):
+    @_('FUN ID LP ID { COMMA ID } RP COLON expr')
+    def decl(self, p):
         args = [p.ID1] + [i[1] for i in p[4]]
-        return Stmt.FUN(p.ID0, args, p.expr)
+        return Decl.FUN(p.ID0, args, p.expr)
 
     @_('IF expr THEN expr ELSE expr FI')
     def expr(self, p):

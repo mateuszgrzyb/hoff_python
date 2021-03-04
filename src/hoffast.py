@@ -1,5 +1,6 @@
 
 from adt import adt, Case
+from dataclasses import dataclass
 
 Number = float
 
@@ -15,6 +16,12 @@ class Expr:
 
 
 @adt
-class Stmt:
-    BIND: Case[str, Expr]
-    FUN:  Case[str, list[str], Expr]
+class Decl:
+    CONST: Case[str, Expr]
+    FUN:   Case[str, list[str], Expr]
+
+
+@dataclass
+class Module:
+    name: str
+    decls: list[Decl]
