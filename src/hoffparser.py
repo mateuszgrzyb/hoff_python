@@ -11,9 +11,13 @@ class HoffParser(Parser):
     start = 'module'
 
     precedence = [
+        ('left', OR),
+        ('left', AND),
+        ('left', EQ, NE),
+        ('left', LT, LE, GE, GT),
         ('left', ADD, SUB),
-        ('left', MUL, DIV),
-        ('right', NEG),
+        ('left', MUL, DIV, MOD),
+        ('right', NEG, BNEG),
     ]
 
     @_('MODULE ID PUBLIC decl { decl }')
@@ -48,13 +52,22 @@ class HoffParser(Parser):
     @_('expr ADD expr',
        'expr SUB expr',
        'expr MUL expr',
-       'expr DIV expr')
+       'expr DIV expr',
+       'expr MOD expr',
+       'expr AND expr',
+       'expr OR expr',
+       'expr LT expr',
+       'expr LE expr',
+       'expr EQ expr',
+       'expr GE expr',
+       'expr GT expr')
     def expr(self, p):
         return Expr.BINOP(p.expr0, p[1], p.expr1)
 
-    @_('SUB expr %prec NEG')
+    @_('SUB expr %prec NEG', 
+       'NOT expr %prec BNEG')
     def expr(self, p):
-        return Expr.UNOP(p.SUB, p.expr)
+        return Expr.UNOP(p[0], p[1])
     
     @_('NUM')
     def expr(self, p):

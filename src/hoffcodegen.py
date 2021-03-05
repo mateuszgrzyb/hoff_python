@@ -67,7 +67,7 @@ class CodeGen:
             Num   = lambda i:          self.__gen_num(i),
             Binop = lambda e1, op, e2: self.__gen_binop(e1, op, e2),
             Unop  = lambda op, e:      self.__gen_unop(op, e),
-            If    = lambda b, e1, e2:  self.__gen_if(be, e1, e2),
+            If    = lambda be, e1, e2: self.__gen_if(be, e1, e2),
             Let   = lambda bs, e:      self.__gen_let(bs, e),
             Call  = lambda n, as_:     self.__gen_call(n, as_),
         )
@@ -88,22 +88,50 @@ class CodeGen:
         l = self.__gen_expr(expr1)
         r = self.__gen_expr(expr2)
         return {
-            '+': lambda l, r: self.builder.fadd(l, r, 'addexpr'),
-            '-': lambda l, r: self.builder.fsub(l, r, 'subexpr'),
-            '*': lambda l, r: self.builder.fmul(l, r, 'mulexpr'),
-            '/': lambda l, r: self.builder.fdiv(l, r, 'divexpr'),
+            '+':  lambda l, r: self.builder.fadd(l, r, 'addexpr'),
+            '-':  lambda l, r: self.builder.fsub(l, r, 'subexpr'),
+            '*':  lambda l, r: self.builder.fmul(l, r, 'mulexpr'),
+            '/':  lambda l, r: self.builder.fdiv(l, r, 'divexpr'),
+            '%':  lambda l, r: self.builder.frem(l, r, 'modexpr'),
+            '<':  lambda l, r: self.builder.fcmp_ordered('<',  l, r, 'ltexpr'),
+            '<=': lambda l, r: self.builder.fcmp_ordered('<=', l, r, 'leexpr'),
+            '==': lambda l, r: self.builder.fcmp_ordered('==', l, r, 'eqexpr'),
+            '!=': lambda l, r: self.builder.fcmp_ordered('!=', l, r, 'neexpr'),
+            '>=': lambda l, r: self.builder.fcmp_ordered('>=', l, r, 'geexpr'),
+            '>':  lambda l, r: self.builder.fcmp_ordered('>',  l, r, 'gtexpr'),
         }[op](l, r)
 
     def __gen_unop(self, op: str, expr: Expr):
         v = self.__gen_expr(expr)
-        return self.builder.fneg(v, 'negexpr')
+        return {
+            '-': lambda v: self.builder.fneg(v, 'negexpr'),
+            '!': lambda v: self.builder.fneg(v, 'notexpr'),
+        }[op](v)
 
-    def __gen_if(self, xpr1: Expr, expr2: Expr, expr3: Expr):
-        pass
+    def __gen_if(self, bexpr: Expr, expr1: Expr, expr2: Expr):
+        bvalue = self.__gen_expr(bexpr)
+        function = self.builder.function
+
+        then_bb = function.append_basic_block(name='then')
+        else_bb = function.append_basic_block(name='else')
+        result_bb = function.append_basic_block(name='result')
+
+
+        
+
+        phi = self.builder.phi(ir.DoubleType())
+        phi.add_incoming(then_result, then_bb)
+        phi.add_incoming(else_result, else_bb)
+
+        self.builder.ret(phi)
 
     def __gen_let(self, binds: list[tuple[str, Expr]], expr: Expr):
-        pass
-
+        names = [name for name, _ in binds]
+        self.values |= { n: self.__gen_expr(e) for n, e in binds }
+        value = self.__gen_expr(expr)
+        self.values = {k: v for k, v in self.values.items() if k not in names}
+        return value
+        
     def __gen_call(self, name: str, args: list[Expr]):
         try:
             function = self.module.get_global(name)
