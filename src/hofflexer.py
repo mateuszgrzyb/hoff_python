@@ -1,5 +1,7 @@
 from sly import Lexer
 
+
+# noinspection PyUnresolvedReferences,PyUnboundLocalVariable
 class HoffLexer(Lexer):
     tokens = { 
         ID, NUM, 

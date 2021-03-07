@@ -6,16 +6,18 @@ from src.hoffcodegen import test, CodeGen
 def main():
     lexer = HoffLexer()
     parser = HoffParser()
+    cg = CodeGen()
+
     with open('main.ff', 'r') as f:
-        #print(f.read())
+        # print(f.read())
         text = f.read()
-        #print(list(lexer.tokenize(text)))
+        # print(list(lexer.tokenize(text)))
         tokens = lexer.tokenize(text)
-        #print(parser.parse(tokens))
+        # print(parser.parse(tokens))
         tree = parser.parse(tokens)
-        print(CodeGen(tree).generate())
+        print(cg.generate(tree))
     
-    #while True:
+    # while True:
     #    try:
     #        text = input('hoff> ')
     #        tree = parser.parse(lexer.tokenize(text))
@@ -26,5 +28,5 @@ def main():
 
 
 if __name__ == '__main__':
-    #test()
+    # test()
     main()

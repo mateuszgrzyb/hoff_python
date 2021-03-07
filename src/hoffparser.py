@@ -3,10 +3,9 @@ from .hofflexer import HoffLexer
 from .hoffast import Expr, Decl, Module
 from math import nan
 
-class HoffParser(Parser):
-    def __init__(self):
-        self.variables = dict()
 
+# noinspection PyUnresolvedReferences,PyCallingNonCallable
+class HoffParser(Parser):
     tokens = HoffLexer.tokens
     start = 'module'
 
